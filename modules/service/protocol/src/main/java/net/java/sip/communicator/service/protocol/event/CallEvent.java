@@ -178,9 +178,20 @@ public class CallEvent
     }
 
     /**
-     * Returns whether or not the call is a video call.
+     * Determina si la llamada actual es una videollamada.
      *
-     * @return true if the call is a video call, false otherwise
+     * Este método verifica dentro del mapa de direcciones de medios
+     * si el tipo de medio asociado al video (MediaType.VIDEO) está
+     * configurado con la dirección de envío y recepción (SENDRECV).
+     *
+     * - Si el valor encontrado es SENDRECV, significa que la llamada
+     *   soporta transmisión y recepción de video, por lo tanto se
+     *   considera videollamada.
+     * - Si no existe información o la dirección no corresponde a
+     *   SENDRECV, se asume que la llamada no es de video.
+     *
+     * @return true si la llamada soporta video bidireccional,
+     *         false en cualquier otro caso.
      */
     public boolean isVideoCall()
     {

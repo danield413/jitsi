@@ -74,10 +74,17 @@ public class CallHistoryActivator
     }
 
     /**
-     * Initialize and start call history
+     * Inicia y registra el servicio de historial de llamadas.
      *
-     * @param bc the <tt>BundleContext</tt>
-     * @throws Exception if initializing and starting call history fails
+     * Este método se encarga de:
+     * 1. Obtener el servicio de historial general del sistema.
+     * 2. Instanciar el servicio específico de historial de llamadas.
+     * 3. Configurarlo y vincularlo con el historial.
+     * 4. Iniciar el servicio y registrarlo dentro del contexto OSGi,
+     *    junto con la fuente de contactos asociada.
+     *
+     * @param bc El contexto del bundle en ejecución, necesario para registrar servicios.
+     * @throws Exception Si ocurre algún error al inicializar o registrar el servicio.
      */
     @Override
     public void startWithServices(BundleContext bc) throws Exception
@@ -85,22 +92,19 @@ public class CallHistoryActivator
         bundleContext = bc;
         HistoryService historyService = getService(HistoryService.class);
 
-        //Create and start the call history service.
-        callHistoryService =
-            new CallHistoryServiceImpl();
-        // set the configuration and history service
+        // Crear e iniciar el servicio de historial de llamadas
+        callHistoryService = new CallHistoryServiceImpl();
         callHistoryService.setHistoryService(historyService);
-
         callHistoryService.start(bundleContext);
 
+        // Registrar servicios principales en el contexto
         bundleContext.registerService(
             CallHistoryService.class.getName(), callHistoryService, null);
-
         bundleContext.registerService(
             ContactSourceService.class.getName(),
             new CallHistoryContactSource(), null);
 
-        logger.info("Call History Service ...[REGISTERED]");
+        logger.info("Servicio de historial de llamadas registrado correctamente.");
     }
 
     /**
