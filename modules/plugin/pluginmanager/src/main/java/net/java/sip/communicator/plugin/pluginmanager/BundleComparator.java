@@ -18,7 +18,6 @@
 package net.java.sip.communicator.plugin.pluginmanager;
 
 import java.util.*;
-
 import org.osgi.framework.*;
 
 /**
@@ -28,6 +27,9 @@ import org.osgi.framework.*;
  */
 public class BundleComparator implements Comparator<Bundle>
 {
+    // Refactorización: constante para el valor por defecto en caso de null
+    private static final String UNKNOWN_BUNDLE_NAME = "unknown";
+
     /**
      * Compares the bundles using their "Bundle-Name"s.
      * @param arg0 the first bundle to compare
@@ -35,19 +37,17 @@ public class BundleComparator implements Comparator<Bundle>
      * @return the result of the string comparison between the names of the two
      * bundles
      */
+    @Override
     public int compare(Bundle arg0, Bundle arg1)
     {
-        String n1 = arg0.getHeaders().get(Constants.BUNDLE_NAME);
-        String n2 = arg1.getHeaders().get(Constants.BUNDLE_NAME);
+        //Refactorización 3: uso de Optional para evitar condicionales explícitos
+        String n1 = Optional.ofNullable(
+            (String) arg0.getHeaders().get(Constants.BUNDLE_NAME)
+        ).orElse(UNKNOWN_BUNDLE_NAME);
 
-        if (n1 == null)
-        {
-            n1 = "unknown";
-        }
-        if (n2 == null)
-        {
-            n2 = "unknown";
-        }
+        String n2 = Optional.ofNullable(
+            (String) arg1.getHeaders().get(Constants.BUNDLE_NAME)
+        ).orElse(UNKNOWN_BUNDLE_NAME);
 
         return n1.compareTo(n2);
     }

@@ -89,6 +89,104 @@ public class Jitsi
     public static final String PNAME_SC_HOME_DIR_NAME
         = "net.java.sip.communicator.SC_HOME_DIR_NAME";
 
+    // REFACTORIZACIÓN 2: Introduce Enum - Nuevo enum para manejar sistemas operativos
+    /**
+     * Enum that represents different operating systems and their specific configurations.
+     * This encapsulates OS-specific logic and eliminates conditional statements throughout the code.
+     */
+    private enum OperatingSystem {
+        MAC("Mac") {
+            @Override
+            public String getProfileLocation(String userHome) {
+                return userHome + File.separator + "Library" + File.separator + "Application Support";
+            }
+            
+            @Override
+            public String getCacheLocation(String userHome) {
+                return userHome + File.separator + "Library" + File.separator + "Caches";
+            }
+            
+            @Override
+            public String getLogLocation(String userHome) {
+                return userHome + File.separator + "Library" + File.separator + "Logs";
+            }
+            
+            @Override
+            public String getDefaultName() {
+                return OVERRIDABLE_DIR_NAME;
+            }
+        },
+        
+        WINDOWS("Windows") {
+            @Override
+            public String getProfileLocation(String userHome) {
+                return System.getenv("APPDATA");
+            }
+            
+            @Override
+            public String getCacheLocation(String userHome) {
+                return System.getenv("LOCALAPPDATA");
+            }
+            
+            @Override
+            public String getLogLocation(String userHome) {
+                return System.getenv("LOCALAPPDATA");
+            }
+            
+            @Override
+            public String getDefaultName() {
+                return OVERRIDABLE_DIR_NAME;
+            }
+        },
+        
+        OTHER("") {
+            @Override
+            public String getProfileLocation(String userHome) {
+                return userHome;
+            }
+            
+            @Override
+            public String getCacheLocation(String userHome) {
+                return userHome;
+            }
+            
+            @Override
+            public String getLogLocation(String userHome) {
+                return userHome;
+            }
+            
+            @Override
+            public String getDefaultName() {
+                return ".jitsi";
+            }
+        };
+
+        private final String osNamePattern;
+
+        OperatingSystem(String osNamePattern) {
+            this.osNamePattern = osNamePattern;
+        }
+
+        public abstract String getProfileLocation(String userHome);
+        public abstract String getCacheLocation(String userHome);
+        public abstract String getLogLocation(String userHome);
+        public abstract String getDefaultName();
+
+        /**
+         * Factory method to detect the current operating system.
+         * @return the appropriate OperatingSystem enum value
+         */
+        public static OperatingSystem detect() {
+            String osName = System.getProperty("os.name", "unknown");
+            for (OperatingSystem os : values()) {
+                if (os != OTHER && osName.contains(os.osNamePattern)) {
+                    return os;
+                }
+            }
+            return OTHER;
+        }
+    }
+
     /**
      * Starts Jitsi.
      *
@@ -210,6 +308,7 @@ public class Jitsi
      * wrappers to call it.
      *
      */
+    // REFACTORIZACIÓN 1: Extract Method - Método principal simplificado mediante extracción de submétodos
     static void setScHomeDir()
     {
         /*
@@ -231,103 +330,30 @@ public class Jitsi
             || logLocation == null
             || name == null)
         {
-            String defaultLocation = System.getProperty("user.home");
-            String defaultName = ".jitsi";
-
-            // Whether we should check legacy names
-            // 1) when such name is not forced we check
-            // 2) if such is forced and is the overridableDirName check it
-            //      (the later is the case with name transition SIP Communicator
-            //      -> Jitsi, check them only for Jitsi)
-            boolean chekLegacyDirNames
-                = (name == null) || name.equals(OVERRIDABLE_DIR_NAME);
-
-            if (System.getProperty("os.name", "unknown").contains("Mac"))
-            {
-                if (profileLocation == null)
-                    profileLocation =
-                            System.getProperty("user.home") + File.separator
-                            + "Library" + File.separator
-                            + "Application Support";
-                if (cacheLocation == null)
-                    cacheLocation =
-                        System.getProperty("user.home") + File.separator
-                        + "Library" + File.separator
-                        + "Caches";
-                if (logLocation == null)
-                    logLocation =
-                        System.getProperty("user.home") + File.separator
-                        + "Library" + File.separator
-                        + "Logs";
-
-                if (name == null)
-                    name = OVERRIDABLE_DIR_NAME;
-            }
-            else if (System.getProperty("os.name", "unknown").contains("Windows"))
-            {
-                /*
-                 * Primarily important on Vista because Windows Explorer opens
-                 * in %USERPROFILE% so .sip-communicator is always visible. But
-                 * it may be a good idea to follow the OS recommendations and
-                 * use APPDATA on pre-Vista systems as well.
-                 */
-                if (profileLocation == null)
-                    profileLocation = System.getenv("APPDATA");
-                if (cacheLocation == null)
-                    cacheLocation = System.getenv("LOCALAPPDATA");
-                if (logLocation == null)
-                    logLocation = System.getenv("LOCALAPPDATA");
-                if (name == null)
-                    name = OVERRIDABLE_DIR_NAME;
-            }
-
-            // If there are no OS specifics, use the defaults
-            if (profileLocation == null)
-                profileLocation = defaultLocation;
-            if (cacheLocation == null)
-                cacheLocation = profileLocation;
-            if (logLocation == null)
-                logLocation = profileLocation;
-            if (name == null)
-                name = defaultName;
+            // REFACTORIZACIÓN 1: Extract Method - Configuración inicial de directorios
+            DirectoryConfiguration config = configureDirectories(name);
+            
+            profileLocation = config.profileLocation;
+            cacheLocation = config.cacheLocation;
+            logLocation = config.logLocation;
+            name = config.name;
 
             /*
              * As it was noted earlier, make sure we're compatible with previous
              * releases. If the home dir name is forced (set as system property)
              * doesn't look for the default dir.
              */
-            if (!isHomeDirnameForced
-                && !new File(profileLocation, name).isDirectory()
-                && new File(defaultLocation, defaultName).isDirectory())
-            {
-                profileLocation = defaultLocation;
-                name = defaultName;
+            if (!isHomeDirnameForced) {
+                // REFACTORIZACIÓN 1: Extract Method - Compatibilidad con versiones anteriores
+                DirectoryConfiguration legacyConfig = handleLegacyCompatibility(profileLocation, name);
+                profileLocation = legacyConfig.profileLocation;
+                name = legacyConfig.name;
             }
 
-            // if we need to check legacy names and there is no current home dir
-            // already created
-            if(chekLegacyDirNames
-                    && !checkHomeFolderExist(profileLocation, name))
-            {
-                // now check whether a legacy dir name exists and use it
-                for (String dir : LEGACY_DIR_NAMES)
-                {
-                    // check the platform specific directory
-                    if (checkHomeFolderExist(profileLocation, dir))
-                    {
-                        name = dir;
-                        break;
-                    }
-
-                    // now check it and in the default location
-                    if (checkHomeFolderExist(defaultLocation, dir))
-                    {
-                        name = dir;
-                        profileLocation = defaultLocation;
-                        break;
-                    }
-                }
-            }
+            // REFACTORIZACIÓN 1: Extract Method - Manejo de nombres de directorios legacy
+            DirectoryConfiguration finalConfig = handleLegacyDirectoryNames(profileLocation, name, isHomeDirnameForced);
+            profileLocation = finalConfig.profileLocation;
+            name = finalConfig.name;
 
             System.setProperty(PNAME_SC_HOME_DIR_LOCATION, profileLocation);
             System.setProperty(PNAME_SC_CACHE_DIR_LOCATION, cacheLocation);
@@ -337,6 +363,117 @@ public class Jitsi
 
         // when we end up with the home dirs, make sure we have log dir
         new File(new File(logLocation, name), "log").mkdirs();
+    }
+
+    // REFACTORIZACIÓN 1: Extract Method - Clase auxiliar para encapsular configuración de directorios
+    /**
+     * Helper class to encapsulate directory configuration data.
+     * This improves code readability and makes parameter passing cleaner.
+     */
+    private static class DirectoryConfiguration {
+        String profileLocation;
+        String cacheLocation;
+        String logLocation;
+        String name;
+        
+        DirectoryConfiguration(String profileLocation, String cacheLocation, String logLocation, String name) {
+            this.profileLocation = profileLocation;
+            this.cacheLocation = cacheLocation;
+            this.logLocation = logLocation;
+            this.name = name;
+        }
+    }
+
+    // REFACTORIZACIÓN 1: Extract Method - Configuración inicial de directorios basada en el SO
+    /**
+     * Configures directories according to the operating system conventions.
+     * Uses the OperatingSystem enum to eliminate OS-specific conditional logic.
+     * 
+     * @param name the directory name (may be null)
+     * @return DirectoryConfiguration with OS-specific paths
+     */
+    private static DirectoryConfiguration configureDirectories(String name) {
+        String defaultLocation = System.getProperty("user.home");
+        OperatingSystem os = OperatingSystem.detect(); // Usa el enum para detectar el SO
+        String userHome = System.getProperty("user.home");
+        
+        String profileLocation = os.getProfileLocation(userHome);
+        String cacheLocation = os.getCacheLocation(userHome);
+        String logLocation = os.getLogLocation(userHome);
+        
+        if (name == null) {
+            name = os.getDefaultName(); // Usa el enum para obtener el nombre por defecto
+        }
+
+        // If there are no OS specifics, use the defaults
+        if (profileLocation == null)
+            profileLocation = defaultLocation;
+        if (cacheLocation == null)
+            cacheLocation = profileLocation;
+        if (logLocation == null)
+            logLocation = profileLocation;
+
+        return new DirectoryConfiguration(profileLocation, cacheLocation, logLocation, name);
+    }
+
+    // REFACTORIZACIÓN 1: Extract Method - Manejo de compatibilidad con versiones anteriores
+    /**
+     * Handles compatibility with previous Jitsi releases by checking for
+     * existing default directories.
+     * 
+     * @param profileLocation current profile location
+     * @param name current directory name
+     * @return DirectoryConfiguration with potentially updated values for legacy compatibility
+     */
+    private static DirectoryConfiguration handleLegacyCompatibility(String profileLocation, String name) {
+        String defaultLocation = System.getProperty("user.home");
+        String defaultName = ".jitsi";
+        
+        if (!new File(profileLocation, name).isDirectory()
+            && new File(defaultLocation, defaultName).isDirectory()) {
+            profileLocation = defaultLocation;
+            name = defaultName;
+        }
+        
+        return new DirectoryConfiguration(profileLocation, null, null, name);
+    }
+
+    // REFACTORIZACIÓN 1: Extract Method - Manejo de nombres de directorios legacy
+    /**
+     * Handles legacy directory names by checking for existing directories
+     * with old naming conventions.
+     * 
+     * @param profileLocation current profile location
+     * @param name current directory name
+     * @param isHomeDirnameForced whether the home directory name was forced via system property
+     * @return DirectoryConfiguration with potentially updated values for legacy directory names
+     */
+    private static DirectoryConfiguration handleLegacyDirectoryNames(String profileLocation, String name, boolean isHomeDirnameForced) {
+        String defaultLocation = System.getProperty("user.home");
+        
+        // Whether we should check legacy names
+        boolean checkLegacyDirNames = (name == null) || name.equals(OVERRIDABLE_DIR_NAME);
+        
+        // if we need to check legacy names and there is no current home dir already created
+        if (checkLegacyDirNames && !checkHomeFolderExist(profileLocation, name)) {
+            // now check whether a legacy dir name exists and use it
+            for (String dir : LEGACY_DIR_NAMES) {
+                // check the platform specific directory
+                if (checkHomeFolderExist(profileLocation, dir)) {
+                    name = dir;
+                    break;
+                }
+
+                // now check it and in the default location
+                if (checkHomeFolderExist(defaultLocation, dir)) {
+                    name = dir;
+                    profileLocation = defaultLocation;
+                    break;
+                }
+            }
+        }
+        
+        return new DirectoryConfiguration(profileLocation, null, null, name);
     }
 
     /**
